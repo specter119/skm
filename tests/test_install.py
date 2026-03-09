@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 from skm.commands.install import run_install
+from skm.config import load_config
 from skm.types import KNOWN_AGENTS
 
 
@@ -30,7 +31,9 @@ def test_install_basic(tmp_path):
 
     config_path = tmp_path / "config" / "skills.yaml"
     config_path.parent.mkdir(parents=True)
-    config_path.write_text(f"- repo: {repo}\n  skills:\n    - test-skill\n")
+    config_path.write_text(
+        f"packages:\n  - repo: {repo}\n    skills:\n      - test-skill\n"
+    )
 
     lock_path = tmp_path / "config" / "skills-lock.yaml"
     store_dir = tmp_path / "store"
@@ -41,8 +44,9 @@ def test_install_basic(tmp_path):
         "codex": str(tmp_path / "agents" / "codex" / "skills"),
     }
 
+    config = load_config(config_path)
     run_install(
-        config_path=config_path,
+        config=config,
         lock_path=lock_path,
         store_dir=store_dir,
         known_agents=agents,
@@ -62,14 +66,15 @@ def test_install_singleton_skill(tmp_path):
 
     config_path = tmp_path / "config" / "skills.yaml"
     config_path.parent.mkdir(parents=True)
-    config_path.write_text(f"- repo: {repo}\n")
+    config_path.write_text(f"packages:\n  - repo: {repo}\n")
 
     lock_path = tmp_path / "config" / "skills-lock.yaml"
     store_dir = tmp_path / "store"
     agents = {"claude": str(tmp_path / "agents" / "claude" / "skills")}
 
+    config = load_config(config_path)
     run_install(
-        config_path=config_path,
+        config=config,
         lock_path=lock_path,
         store_dir=store_dir,
         known_agents=agents,

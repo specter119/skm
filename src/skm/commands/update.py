@@ -2,18 +2,17 @@ from pathlib import Path
 
 import click
 
-from skm.config import load_config
 from skm.detect import detect_skills
 from skm.git import clone_or_pull, get_head_commit, get_log_between, repo_url_to_dirname
 from skm.linker import link_skill, resolve_target_agents
 from skm.lock import load_lock, save_lock
-from skm.types import InstalledSkill
+from skm.types import InstalledSkill, SkmConfig
 from skm.utils import compact_path
 
 
 def run_update(
     skill_name: str,
-    config_path: Path,
+    config: SkmConfig,
     lock_path: Path,
     store_dir: Path,
     known_agents: dict[str, str],
@@ -54,9 +53,8 @@ def run_update(
 
     # Re-detect and re-link
     detected = detect_skills(repo_path)
-    configs = load_config(config_path)
     repo_config = None
-    for c in configs:
+    for c in config.packages:
         if c.repo == old_skill.repo:
             repo_config = c
             break

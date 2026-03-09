@@ -2,6 +2,7 @@ from pathlib import Path
 
 import click
 
+from skm.config import load_config
 from skm.types import CONFIG_PATH, LOCK_PATH, STORE_DIR, KNOWN_AGENTS
 
 
@@ -24,12 +25,14 @@ def cli(ctx, config_path, store_dir, lock_path, agents_dir):
     ctx.obj["agents_dir"] = agents_dir
 
 
-def _expand_agents(agents_dir: str | None = None) -> dict[str, str]:
+def _expand_agents(agents_dir: str | None = None, default_agents: list[str] | None = None) -> dict[str, str]:
+    agents = KNOWN_AGENTS
+    if default_agents is not None:
+        agents = {k: v for k, v in agents.items() if k in default_agents}
     if agents_dir:
-        # All agents symlink into subdirs of the given base directory
         base = Path(agents_dir)
-        return {name: str(base / name) for name in KNOWN_AGENTS}
-    return {name: str(Path(path).expanduser()) for name, path in KNOWN_AGENTS.items()}
+        return {name: str(base / name) for name in agents}
+    return {name: str(Path(path).expanduser()) for name, path in agents.items()}
 
 
 @cli.command()
@@ -37,9 +40,11 @@ def _expand_agents(agents_dir: str | None = None) -> dict[str, str]:
 def install(ctx):
     """Install/remove skills based on config."""
     from skm.commands.install import run_install
-    agents = _expand_agents(ctx.obj["agents_dir"])
+    config = load_config(ctx.obj["config_path"])
+    default_agents = config.agents.default if config.agents else None
+    agents = _expand_agents(ctx.obj["agents_dir"], default_agents)
     run_install(
-        config_path=ctx.obj["config_path"],
+        config=config,
         lock_path=ctx.obj["lock_path"],
         store_dir=ctx.obj["store_dir"],
         known_agents=agents,
@@ -60,10 +65,12 @@ def check_updates(ctx):
 def update(ctx, skill_name: str):
     """Update a specific skill."""
     from skm.commands.update import run_update
-    agents = _expand_agents(ctx.obj["agents_dir"])
+    config = load_config(ctx.obj["config_path"])
+    default_agents = config.agents.default if config.agents else None
+    agents = _expand_agents(ctx.obj["agents_dir"], default_agents)
     run_update(
         skill_name=skill_name,
-        config_path=ctx.obj["config_path"],
+        config=config,
         lock_path=ctx.obj["lock_path"],
         store_dir=ctx.obj["store_dir"],
         known_agents=agents,
@@ -78,7 +85,9 @@ def list_skills(ctx, show_all: bool):
     """List installed skills and their linked paths."""
     from skm.commands.list_cmd import run_list, run_list_all
     if show_all:
-        agents = _expand_agents(ctx.obj["agents_dir"])
+        config = load_config(ctx.obj["config_path"])
+        default_agents = config.agents.default if config.agents else None
+        agents = _expand_agents(ctx.obj["agents_dir"], default_agents)
         run_list_all(ctx.obj["lock_path"], agents)
     else:
         run_list(ctx.obj["lock_path"])

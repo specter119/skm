@@ -2,29 +2,27 @@ from pathlib import Path
 
 import click
 
-from skm.config import load_config
 from skm.detect import detect_skills
 from skm.git import clone_or_pull, get_head_commit, repo_url_to_dirname
 from skm.linker import link_skill, unlink_skill, resolve_target_agents
 from skm.lock import load_lock, save_lock
-from skm.types import InstalledSkill, LockFile
+from skm.types import InstalledSkill, LockFile, SkmConfig
 from skm.utils import compact_path
 
 
 def run_install(
-    config_path: Path,
+    config: SkmConfig,
     lock_path: Path,
     store_dir: Path,
     known_agents: dict[str, str],
 ) -> None:
-    configs = load_config(config_path)
     lock = load_lock(lock_path)
     new_lock_skills: list[InstalledSkill] = []
 
     # Track which skills are configured (for removal detection)
     configured_skill_keys: set[tuple[str, str]] = set()
 
-    for repo_config in configs:
+    for repo_config in config.packages:
         repo_dir_name = repo_url_to_dirname(repo_config.repo)
         repo_path = store_dir / repo_dir_name
 

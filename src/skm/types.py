@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 # --- Config models (parsed from skills.yaml) ---
@@ -19,6 +19,24 @@ class SkillRepoConfig(BaseModel):
     repo: str
     skills: list[str] | None = None
     agents: AgentsConfig | None = None
+
+
+class DefaultAgentsConfig(BaseModel):
+    default: list[str] | None = None
+
+    @field_validator("default")
+    @classmethod
+    def check_known_agents(cls, v: list[str] | None) -> list[str] | None:
+        if v is not None:
+            unknown = [a for a in v if a not in KNOWN_AGENTS]
+            if unknown:
+                raise ValueError(f"Unknown agents: {unknown}. Known agents: {list(KNOWN_AGENTS.keys())}")
+        return v
+
+
+class SkmConfig(BaseModel):
+    packages: list[SkillRepoConfig]
+    agents: DefaultAgentsConfig | None = None
 
 
 # --- Lock file models ---

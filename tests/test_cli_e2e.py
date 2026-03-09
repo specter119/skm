@@ -56,11 +56,14 @@ def _cli_args(tmp_path: Path) -> list[str]:
     ]
 
 
-def _write_config(tmp_path: Path, repos: list[dict]) -> Path:
+def _write_config(tmp_path: Path, repos: list[dict], agents: dict | None = None) -> Path:
     """Write a skills.yaml config file and return its path."""
     config_path = tmp_path / "config" / "skills.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(yaml.dump(repos, default_flow_style=False))
+    data: dict = {"packages": repos}
+    if agents is not None:
+        data["agents"] = agents
+    config_path.write_text(yaml.dump(data, default_flow_style=False))
     return config_path
 
 

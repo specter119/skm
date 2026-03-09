@@ -5,7 +5,7 @@ A CLI tool that manages AI agent skills by cloning GitHub repos, detecting skill
 ## Tech Stack
 
 - Python 3.12+, uv, click, pyyaml, pydantic
-- Git operations via subprocess
+- Git operations via subprocess (unified `run_cmd` helper raises `click.ClickException` on failure)
 - Tests: pytest
 
 ## Project Structure
@@ -17,7 +17,8 @@ src/skm/
 ├── config.py           # Load skills.yaml → list[SkillRepoConfig]
 ├── lock.py             # Read/write skills-lock.yaml
 ├── detect.py           # Walk cloned repos for SKILL.md files
-├── git.py              # Clone, pull, fetch, commit SHA helpers
+├── git.py              # Clone, pull, fetch, commit SHA helpers (unified run_cmd error handling)
+├── utils.py            # Utility functions (compact_path)
 ├── linker.py           # Symlink skills to agent dirs, resolve includes/excludes
 └── commands/
     ├── install.py      # Clone repos, detect skills, link to agents, update lock
@@ -28,8 +29,8 @@ tests/
 ├── test_types.py        # Pydantic model validation
 ├── test_config.py       # Config loading, error handling
 ├── test_lock.py         # Lock file I/O
-├── test_detect.py       # Skill detection logic
-├── test_git.py          # Git operations (clone, commit retrieval)
+├── test_detect.py       # Skill detection logic (local + network tests against real repos)
+├── test_git.py          # Git operations (clone, commit retrieval, clone failure handling)
 ├── test_linker.py       # Symlink creation, agent filtering
 ├── test_install.py      # Install command unit tests
 └── test_cli_e2e.py      # End-to-end CLI tests for all commands
@@ -48,9 +49,17 @@ Config-driven: parse `skills.yaml` → clone repos to store → detect skills by
 
 Each command function (`run_install`, `run_list`, etc.) accepts explicit paths and agent dicts as parameters, making them testable with `tmp_path` fixtures without touching real filesystem locations.
 
+## Error Handling
+
+All git subprocess calls go through `run_cmd()` in `git.py`, which captures stdout/stderr and raises `click.ClickException` on non-zero exit codes. This produces user-friendly error messages instead of raw `CalledProcessError` tracebacks.
+
+## Path Handling
+
+Paths stored in `skills-lock.yaml` (e.g. `linked_to`) use `compact_path()` from `utils.py` to replace the home directory with `~`, avoiding exposure of usernames. When reading these paths back for filesystem operations, `Path.expanduser()` is used.
+
 ## CLI Commands
 
-- `skm install` — Clone repos, detect skills, create symlinks, update lock
+- `skm install` — Clone repos (idempotent: skips pull if already cloned), detect skills, create symlinks, update lock
 - `skm list` — Show installed skills and their linked paths from lock file
 - `skm check-updates` — Fetch remotes, compare against locked commits, show changelog
 - `skm update <skill_name>` — Pull latest for a skill's repo, re-link, update lock
@@ -101,7 +110,7 @@ All tests run entirely within pytest's `tmp_path` — no real agent directories,
 - **Unit tests** (`test_install.py`, `test_linker.py`, etc.): call `run_*` functions directly with explicit `config_path`, `lock_path`, `store_dir`, and `known_agents` parameters pointing to `tmp_path` subdirectories.
 - **E2E tests** (`test_cli_e2e.py`): invoke the CLI through Click's `CliRunner` with `--config`, `--store`, `--lock`, and `--agents-dir` flags to redirect all I/O into `tmp_path`.
 
-Git repos used in tests are local repos created via `git init` inside `tmp_path` — no network access required.
+Git repos used in tests are local repos created via `git init` inside `tmp_path` — no network access required. Tests marked with `@pytest.mark.network` clone real GitHub repos and require internet access.
 
 ### CLI Path Overrides
 
