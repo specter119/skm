@@ -21,7 +21,7 @@ def run_install(
     new_lock_skills: list[InstalledSkill] = []
 
     # Track which skills are configured (for removal detection)
-    configured_skill_names: set[str] = set()
+    configured_skill_keys: set[tuple[str, str]] = set()
 
     for repo_config in configs:
         repo_dir_name = repo_url_to_dirname(repo_config.repo)
@@ -50,7 +50,7 @@ def run_install(
             skills_to_install = detected
 
         for skill in skills_to_install:
-            configured_skill_names.add(skill.name)
+            configured_skill_keys.add((skill.name, repo_config.repo))
             linked_paths = []
 
             for agent_name, agent_dir in target_agents.items():
@@ -68,7 +68,7 @@ def run_install(
 
     # Remove skills that were in old lock but no longer in config
     for old_skill in lock.skills:
-        if old_skill.name not in configured_skill_names:
+        if (old_skill.name, old_skill.repo) not in configured_skill_keys:
             click.echo(f"  Removing {old_skill.name} (no longer in config)")
             for link_path in old_skill.linked_to:
                 p = Path(link_path)
