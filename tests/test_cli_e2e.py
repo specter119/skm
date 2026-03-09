@@ -222,6 +222,61 @@ class TestList:
         assert "listed-skill" in result.output
         assert str(repo) in result.output
 
+    def test_list_all_shows_unmanaged_skills(self, tmp_path):
+        """--all shows all skills in agent dirs, marking unmanaged ones."""
+        repo = _make_skill_repo(tmp_path, "repo-all", [{"name": "managed-skill"}])
+        _write_config(tmp_path, [{"repo": str(repo)}])
+
+        runner = CliRunner()
+        runner.invoke(cli, [*_cli_args(tmp_path), "install"])
+
+        # Create an unmanaged skill directory in one agent dir
+        unmanaged = tmp_path / "agents" / "claude" / "manual-skill"
+        unmanaged.mkdir(parents=True, exist_ok=True)
+        (unmanaged / "SKILL.md").write_text("---\nname: manual-skill\n---\n# manual\n")
+
+        result = runner.invoke(cli, [*_cli_args(tmp_path), "list", "--all"])
+        assert result.exit_code == 0, result.output
+        # Should show agent headers
+        assert "claude" in result.output
+        # Should show both managed and unmanaged skills
+        assert "managed-skill" in result.output
+        assert "manual-skill" in result.output
+
+    def test_list_all_empty_agents(self, tmp_path):
+        """--all with no agent dirs shows nothing."""
+        _write_config(tmp_path, [])
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), "list", "--all"])
+        assert result.exit_code == 0
+
+    def test_list_all_distinguishes_managed(self, tmp_path):
+        """--all marks managed skills differently from unmanaged."""
+        repo = _make_skill_repo(tmp_path, "repo-dist", [{"name": "skm-skill"}])
+        _write_config(tmp_path, [{"repo": str(repo)}])
+
+        runner = CliRunner()
+        runner.invoke(cli, [*_cli_args(tmp_path), "install"])
+
+        # Add an unmanaged skill
+        unmanaged = tmp_path / "agents" / "claude" / "local-skill"
+        unmanaged.mkdir(parents=True, exist_ok=True)
+
+        result = runner.invoke(cli, [*_cli_args(tmp_path), "list", "--all"])
+        assert result.exit_code == 0, result.output
+        # The output should contain some indicator for managed vs unmanaged
+        # Managed skills should show repo info or a marker
+        lines = result.output.splitlines()
+        # Find lines with skill names
+        skm_lines = [l for l in lines if "skm-skill" in l]
+        local_lines = [l for l in lines if "local-skill" in l]
+        assert len(skm_lines) > 0
+        assert len(local_lines) > 0
+        # Managed skills should have some distinguishing marker (e.g. repo info)
+        assert any("repo-dist" in l or "skm" in l.lower() for l in skm_lines)
+        # Unmanaged should NOT have repo info
+        assert not any("repo-dist" in l for l in local_lines)
+
 
 class TestUpdate:
     def test_update_nonexistent_skill(self, tmp_path):

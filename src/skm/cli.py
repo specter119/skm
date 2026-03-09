@@ -71,8 +71,14 @@ def update(ctx, skill_name: str):
 
 
 @cli.command(name="list")
+@click.option("--all", "show_all", is_flag=True, default=False,
+              help="Show all skills in each agent directory, including unmanaged ones.")
 @click.pass_context
-def list_skills(ctx):
+def list_skills(ctx, show_all: bool):
     """List installed skills and their linked paths."""
-    from skm.commands.list_cmd import run_list
-    run_list(ctx.obj["lock_path"])
+    from skm.commands.list_cmd import run_list, run_list_all
+    if show_all:
+        agents = _expand_agents(ctx.obj["agents_dir"])
+        run_list_all(ctx.obj["lock_path"], agents)
+    else:
+        run_list(ctx.obj["lock_path"])
