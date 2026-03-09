@@ -1,4 +1,7 @@
 import subprocess
+
+import click
+import pytest
 from skm.git import clone_or_pull, get_head_commit, repo_url_to_dirname
 
 
@@ -29,3 +32,23 @@ def test_clone_and_get_commit(tmp_path):
 
     # Pull again (should not error)
     clone_or_pull(str(src), dest)
+
+
+@pytest.mark.network
+def test_clone_real_repo(tmp_path):
+    """Clone a real GitHub repo successfully."""
+    dest = tmp_path / "firecrawl-cli"
+    clone_or_pull("https://github.com/firecrawl/cli", dest)
+    assert (dest / ".git").exists()
+
+    commit = get_head_commit(dest)
+    assert len(commit) == 40
+
+
+@pytest.mark.network
+def test_clone_nonexistent_repo(tmp_path):
+    """Cloning a non-existent repo raises click.ClickException with stderr info."""
+    dest = tmp_path / "bad-clone"
+    with pytest.raises(click.ClickException) as exc_info:
+        clone_or_pull("https://github.com/this-org-does-not-exist-skm-test/nonexistent-repo-xyz", dest)
+    assert "stderr:" in exc_info.value.message
