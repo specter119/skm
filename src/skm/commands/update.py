@@ -28,7 +28,7 @@ def run_update(
 
     if old_skill is None:
         click.echo(f"Skill '{skill_name}' is not installed.")
-        return
+        raise SystemExit(1)
 
     repo_dir_name = repo_url_to_dirname(old_skill.repo)
     repo_path = store_dir / repo_dir_name
@@ -60,8 +60,12 @@ def run_update(
             repo_config = c
             break
 
+    if repo_config is None:
+        click.echo(f"  Error: repo '{old_skill.repo}' not found in config. Cannot determine target agents.")
+        raise SystemExit(1)
+
     target_agents = resolve_target_agents(
-        repo_config.agents if repo_config else None,
+        repo_config.agents,
         known_agents,
     )
 
