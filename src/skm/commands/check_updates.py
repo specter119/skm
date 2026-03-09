@@ -25,7 +25,7 @@ def run_check_updates(lock_path: Path, store_dir: Path) -> None:
         repo_path = store_dir / repo_dir_name
 
         if not repo_path.exists():
-            click.echo(f"Warning: Repo not found locally: {repo_url}")
+            click.echo(click.style(f"Warning: Repo not found locally: {repo_url}", fg="red"))
             continue
 
         click.echo(f"Fetching {repo_url}...")
