@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 # --- Config models (parsed from skills.yaml) ---
@@ -7,6 +7,12 @@ from pydantic import BaseModel
 class AgentsConfig(BaseModel):
     includes: list[str] | None = None
     excludes: list[str] | None = None
+
+    @model_validator(mode="after")
+    def check_mutual_exclusion(self):
+        if self.includes is not None and self.excludes is not None:
+            raise ValueError("Cannot specify both 'includes' and 'excludes' in agents config")
+        return self
 
 
 class SkillRepoConfig(BaseModel):
