@@ -25,13 +25,14 @@ src/skm/
     ├── check_updates.py # Fetch remotes, compare commits, show available updates
     └── update.py       # Pull latest for a skill's repo, re-link, update lock
 tests/
-├── test_types.py
-├── test_config.py
-├── test_lock.py
-├── test_detect.py
-├── test_git.py
-├── test_linker.py
-└── test_install.py
+├── test_types.py        # Pydantic model validation
+├── test_config.py       # Config loading, error handling
+├── test_lock.py         # Lock file I/O
+├── test_detect.py       # Skill detection logic
+├── test_git.py          # Git operations (clone, commit retrieval)
+├── test_linker.py       # Symlink creation, agent filtering
+├── test_install.py      # Install command unit tests
+└── test_cli_e2e.py      # End-to-end CLI tests for all commands
 ```
 
 ## Key Paths
@@ -81,6 +82,68 @@ Defined in `src/skm/types.py` as `KNOWN_AGENTS`:
 - `claude` → `~/.claude/skills`
 - `codex` → `~/.codex/skills`
 - `openclaw` → `~/.openclaw/skills`
+
+## Testing
+
+### Running Tests
+
+```bash
+uv sync
+uv run pytest -v              # all tests
+uv run pytest tests/test_cli_e2e.py -v   # e2e only
+uv run pytest -k "install" -v            # filter by name
+```
+
+### Test Isolation
+
+All tests run entirely within pytest's `tmp_path` — no real agent directories, config files, or git repos are touched. This is achieved two ways:
+
+- **Unit tests** (`test_install.py`, `test_linker.py`, etc.): call `run_*` functions directly with explicit `config_path`, `lock_path`, `store_dir`, and `known_agents` parameters pointing to `tmp_path` subdirectories.
+- **E2E tests** (`test_cli_e2e.py`): invoke the CLI through Click's `CliRunner` with `--config`, `--store`, `--lock`, and `--agents-dir` flags to redirect all I/O into `tmp_path`.
+
+Git repos used in tests are local repos created via `git init` inside `tmp_path` — no network access required.
+
+### CLI Path Overrides
+
+The CLI group accepts four flags to override default paths, useful for both testing and safe manual experimentation:
+
+```bash
+skm --config /tmp/test.yaml \
+    --store /tmp/store \
+    --lock /tmp/lock.yaml \
+    --agents-dir /tmp/agents \
+    install
+```
+
+- `--config` — path to `skills.yaml` (default: `~/.config/skm/skills.yaml`)
+- `--lock` — path to `skills-lock.yaml` (default: `~/.config/skm/skills-lock.yaml`)
+- `--store` — directory for cloned repos (default: `~/.local/share/skm/skills/`)
+- `--agents-dir` — base directory for agent symlinks; creates subdirs per agent name (overrides `KNOWN_AGENTS` paths)
+
+### E2E Test Helpers
+
+`test_cli_e2e.py` provides reusable helpers for writing new tests:
+
+- `_make_skill_repo(base, repo_name, skills)` — creates a local git repo with specified skills. Each skill is `{"name": str, "subdir": bool}` where `subdir=True` (default) puts it under `skills/<name>/`, `False` makes it a singleton at repo root.
+- `_cli_args(tmp_path)` — returns the common `--config/--store/--lock/--agents-dir` flags for full isolation.
+- `_write_config(tmp_path, repos)` — writes a `skills.yaml` from a list of repo dicts.
+- `_load_lock(tmp_path)` — loads the lock file as a plain dict for assertions.
+
+### Writing New Tests
+
+To add a new e2e test, follow this pattern:
+
+```python
+def test_my_scenario(self, tmp_path):
+    repo = _make_skill_repo(tmp_path, "my-repo", [{"name": "my-skill"}])
+    _write_config(tmp_path, [{"repo": str(repo)}])
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [*_cli_args(tmp_path), "install"])
+
+    assert result.exit_code == 0, result.output
+    # assert on symlinks, lock contents, output text, etc.
+```
 
 ## Development
 
