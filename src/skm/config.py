@@ -15,4 +15,9 @@ def load_config(config_path: Path) -> list[SkillRepoConfig]:
     if not data:
         raise ValueError(f"Config file is empty: {config_path}")
 
+    if not isinstance(data, list):
+        raise ValueError(
+            f"Config must be a YAML list of repos, got {type(data).__name__}: {config_path}"
+        )
+
     return [SkillRepoConfig(**item) for item in data]
