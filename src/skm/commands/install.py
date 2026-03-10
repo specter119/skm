@@ -6,7 +6,7 @@ from skm.detect import detect_skills
 from skm.git import clone_or_pull, get_head_commit, repo_url_to_dirname
 from skm.linker import link_skill, unlink_skill, resolve_target_agents
 from skm.lock import load_lock, save_lock
-from skm.types import InstalledSkill, LockFile, SkmConfig
+from skm.types import InstalledSkill, LockFile, SkillRepoConfig, SkmConfig
 from skm.utils import compact_path
 
 
@@ -153,3 +153,43 @@ def _install_repo(repo_config, store_dir, new_lock_skills, configured_skill_keys
                 linked_to=linked_paths,
             )
         )
+
+
+def run_install_package(
+    repo_config: SkillRepoConfig,
+    lock_path: Path,
+    store_dir: Path,
+    known_agents: dict[str, str],
+    force: bool = False,
+) -> None:
+    """Install a single package and merge results into the existing lock file."""
+    lock = load_lock(lock_path)
+    new_lock_skills: list[InstalledSkill] = []
+    configured_skill_keys: set[tuple[str, str]] = set()
+
+    if repo_config.is_local:
+        _install_local(repo_config, new_lock_skills, configured_skill_keys, known_agents, force)
+    else:
+        _install_repo(repo_config, store_dir, new_lock_skills, configured_skill_keys, known_agents, force)
+
+    click.echo()
+
+    # Merge: keep existing lock entries from other sources, replace entries from this source
+    source_key = repo_config.source_key
+    merged_skills = []
+    for existing in lock.skills:
+        existing_source = existing.repo or existing.local_path or ''
+        # Keep entries not from this source
+        if existing_source != source_key:
+            # Also check expanded local_path
+            if not (
+                repo_config.is_local
+                and existing.local_path
+                and str(Path(existing.local_path).expanduser()) == str(Path(source_key).expanduser())
+            ):
+                merged_skills.append(existing)
+    merged_skills.extend(new_lock_skills)
+
+    new_lock = LockFile(skills=merged_skills)
+    save_lock(new_lock, lock_path)
+    click.echo(f'Lock file updated: {lock_path}')
