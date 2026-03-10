@@ -5,13 +5,23 @@ entirely within tmp_path, never touching real agent directories.
 """
 
 import subprocess
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
 from click.testing import CliRunner
+from ruamel.yaml import YAML
 
 from skm.cli import cli
+
+_yaml = YAML()
+_yaml.default_flow_style = False
+
+
+def _yaml_dump(data) -> str:
+    buf = StringIO()
+    _yaml.dump(data, buf)
+    return buf.getvalue()
 
 
 def _init_git_repo(path: Path) -> None:
@@ -56,7 +66,7 @@ def _write_config(tmp_path: Path, repos: list[dict], agents: dict | None = None)
     data: dict = {'packages': repos}
     if agents is not None:
         data['agents'] = agents
-    config_path.write_text(yaml.dump(data, default_flow_style=False))
+    config_path.write_text(_yaml_dump(data))
     return config_path
 
 
@@ -64,14 +74,14 @@ def _load_config(tmp_path: Path) -> dict:
     config_path = tmp_path / 'config' / 'skills.yaml'
     if not config_path.exists():
         return {}
-    return yaml.safe_load(config_path.read_text()) or {}
+    return _yaml.load(config_path) or {}
 
 
 def _load_lock(tmp_path: Path) -> dict:
     lock_path = tmp_path / 'config' / 'skills-lock.yaml'
     if not lock_path.exists():
         return {'skills': []}
-    return yaml.safe_load(lock_path.read_text()) or {'skills': []}
+    return _yaml.load(lock_path) or {'skills': []}
 
 
 class TestInstallFromLocalPath:

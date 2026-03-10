@@ -5,10 +5,14 @@ entirely within tmp_path, never touching real agent directories.
 """
 
 import subprocess
+from io import StringIO
 from pathlib import Path
 
-import yaml
 from click.testing import CliRunner
+from ruamel.yaml import YAML
+
+_yaml = YAML()
+_yaml.default_flow_style = False
 
 from skm.cli import cli
 
@@ -65,7 +69,9 @@ def _write_config(tmp_path: Path, repos: list[dict], agents: dict | None = None)
     data: dict = {'packages': repos}
     if agents is not None:
         data['agents'] = agents
-    config_path.write_text(yaml.dump(data, default_flow_style=False))
+    buf = StringIO()
+    _yaml.dump(data, buf)
+    config_path.write_text(buf.getvalue())
     return config_path
 
 
@@ -74,7 +80,7 @@ def _load_lock(tmp_path: Path) -> dict:
     lock_path = tmp_path / 'config' / 'skills-lock.yaml'
     if not lock_path.exists():
         return {'skills': []}
-    return yaml.safe_load(lock_path.read_text()) or {'skills': []}
+    return _yaml.load(lock_path) or {'skills': []}
 
 
 # --- Tests ---
