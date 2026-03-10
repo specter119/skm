@@ -2,6 +2,8 @@
 
 A CLI tool that manages AI agent skills from GitHub repos or local directories. Clone repos or link local paths, detect skills via `SKILL.md`, and symlink them into agent directories — all driven by a single YAML config.
 
+![skm install](images/skm-install.png)
+
 ## Install
 
 ```bash
