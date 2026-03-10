@@ -301,6 +301,7 @@ def view(ctx, source: str):
 
 
 @cli.command(name='list')
+@click.argument('skill_name', required=False, default=None)
 @click.option(
     '--all',
     'show_all',
@@ -308,8 +309,15 @@ def view(ctx, source: str):
     default=False,
     help='Show all skills in each agent directory, including unmanaged ones.',
 )
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    default=False,
+    help='Show skill paths and symlink targets.',
+)
 @click.pass_context
-def list_skills(ctx, show_all: bool):
+def list_skills(ctx, skill_name: str | None, show_all: bool, verbose: bool):
     """List installed skills and their linked paths."""
     from skm.commands.list_cmd import run_list, run_list_all
 
@@ -319,4 +327,4 @@ def list_skills(ctx, show_all: bool):
         agents = _expand_agents(ctx.obj['agents_dir'], default_agents)
         run_list_all(ctx.obj['lock_path'], agents)
     else:
-        run_list(ctx.obj['lock_path'])
+        run_list(ctx.obj['lock_path'], verbose=verbose, skill_name=skill_name)
