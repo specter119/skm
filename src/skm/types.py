@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -105,7 +106,6 @@ _AGENT_ENV_OVERRIDES: dict[str, str] = {
 
 def _get_known_agents() -> dict[str, str]:
     """Return known agents dict, applying env-var overrides where set."""
-    import os
 
     result = dict(_KNOWN_AGENTS_DEFAULTS)
     for agent, env_var in _AGENT_ENV_OVERRIDES.items():
