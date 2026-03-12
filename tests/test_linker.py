@@ -44,10 +44,11 @@ def test_link_skill(tmp_path):
     agent_dir = tmp_path / 'agent' / 'skills'
     agent_dir.mkdir(parents=True)
 
-    linked = link_skill(skill_src, 'my-skill', str(agent_dir))
+    linked, status = link_skill(skill_src, 'my-skill', str(agent_dir))
     assert linked.is_symlink()
     assert linked.resolve() == skill_src.resolve()
     assert linked.name == 'my-skill'
+    assert status == 'new'
 
 
 def test_link_skill_already_linked(tmp_path):
@@ -58,8 +59,9 @@ def test_link_skill_already_linked(tmp_path):
     agent_dir.mkdir(parents=True)
 
     link_skill(skill_src, 'my-skill', str(agent_dir))
-    linked = link_skill(skill_src, 'my-skill', str(agent_dir))
+    linked, status = link_skill(skill_src, 'my-skill', str(agent_dir))
     assert linked.is_symlink()
+    assert status == 'exists'
 
 
 def test_link_skill_existing_dir_raises(tmp_path):
@@ -88,9 +90,10 @@ def test_link_skill_force_overrides_dir(tmp_path):
     (agent_dir / 'my-skill').mkdir()
     (agent_dir / 'my-skill' / 'some-file.md').write_text('hello')
 
-    linked = link_skill(skill_src, 'my-skill', str(agent_dir), force=True)
+    linked, status = link_skill(skill_src, 'my-skill', str(agent_dir), force=True)
     assert linked.is_symlink()
     assert linked.resolve() == skill_src.resolve()
+    assert status == 'new'
 
 
 def test_link_skill_force_overrides_file(tmp_path):
@@ -102,9 +105,26 @@ def test_link_skill_force_overrides_file(tmp_path):
     # Create a regular file at the target
     (agent_dir / 'my-skill').write_text('not a symlink')
 
-    linked = link_skill(skill_src, 'my-skill', str(agent_dir), force=True)
+    linked, status = link_skill(skill_src, 'my-skill', str(agent_dir), force=True)
     assert linked.is_symlink()
     assert linked.resolve() == skill_src.resolve()
+    assert status == 'new'
+
+
+def test_link_skill_different_source_replaces(tmp_path):
+    """Symlink pointing to different source gets replaced."""
+    skill_src_1 = tmp_path / 'store1' / 'my-skill'
+    skill_src_1.mkdir(parents=True)
+    skill_src_2 = tmp_path / 'store2' / 'my-skill'
+    skill_src_2.mkdir(parents=True)
+    agent_dir = tmp_path / 'agent' / 'skills'
+    agent_dir.mkdir(parents=True)
+
+    link_skill(skill_src_1, 'my-skill', str(agent_dir))
+    linked, status = link_skill(skill_src_2, 'my-skill', str(agent_dir))
+    assert linked.is_symlink()
+    assert linked.resolve() == skill_src_2.resolve()
+    assert status == 'replaced'
 
 
 def test_unlink_skill(tmp_path):

@@ -52,10 +52,11 @@ def _expand_agents(agents_dir: str | None = None, default_agents: list[str] | No
 @click.option(
     '--force', is_flag=True, default=False, help='Override existing non-symlink skill directories without prompting.'
 )
+@click.option('-v', '--verbose', is_flag=True, default=False, help='Show detailed output for every operation.')
 @click.option('--agents-includes', default=None, help='Comma-separated agents to include (skips interactive).')
 @click.option('--agents-excludes', default=None, help='Comma-separated agents to exclude (skips interactive).')
 @click.pass_context
-def install(ctx, source, skill_name, force, agents_includes, agents_excludes):
+def install(ctx, source, skill_name, force, verbose, agents_includes, agents_excludes):
     """Install skills from config or directly from a source.
 
     SOURCE can be a repo URL or local path. If omitted, installs from config.
@@ -77,6 +78,7 @@ def install(ctx, source, skill_name, force, agents_includes, agents_excludes):
             store_dir=ctx.obj['store_dir'],
             known_agents=agents,
             force=force,
+            verbose=verbose,
         )
         return
 
@@ -127,6 +129,7 @@ def install(ctx, source, skill_name, force, agents_includes, agents_excludes):
                     store_dir=ctx.obj['store_dir'],
                     known_agents=agents,
                     force=force,
+                    verbose=verbose,
                 )
                 return
 
@@ -224,6 +227,7 @@ def install(ctx, source, skill_name, force, agents_includes, agents_excludes):
         store_dir=ctx.obj['store_dir'],
         known_agents=agents,
         force=force,
+        verbose=verbose,
     )
 
 

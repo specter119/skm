@@ -96,7 +96,7 @@ class TestInstall:
 
         assert result.exit_code == 0, result.output
         assert 'Cloning' in result.output
-        assert 'Linked my-skill' in result.output
+        assert 'my-skill' in result.output
 
         # Verify links created for all agents
         for agent in ['claude', 'codex', 'standard']:
@@ -201,7 +201,7 @@ class TestInstall:
 
         result2 = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
         assert result2.exit_code == 0, result2.output
-        assert 'Using existing' in result2.output
+        assert 'up to date' in result2.output
 
         lock = _load_lock(tmp_path)
         assert len(lock['skills']) == 1
@@ -236,6 +236,31 @@ class TestInstall:
         lock = _load_lock(tmp_path)
         assert len(lock['skills']) == 1
         assert lock['skills'][0]['name'] == 'keep-me'
+
+    def test_install_dedup_same_name(self, tmp_path):
+        """Two skills with the same name in one source should be deduplicated."""
+        repo = tmp_path / 'repo-dedup'
+        _init_git_repo(repo)
+        # Create two subdirectories with different paths but same skill name
+        for subdir in ['variant-a', 'variant-b']:
+            skill_dir = repo / 'skills' / subdir
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / 'SKILL.md').write_text('---\nname: dup-skill\ndescription: test\n---\n# dup\n')
+
+        subprocess.run(['git', 'add', '.'], cwd=repo, capture_output=True, check=True)
+        subprocess.run(['git', 'commit', '-m', 'init'], cwd=repo, capture_output=True, check=True)
+        _write_config(tmp_path, [{'repo': str(repo)}])
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+
+        assert result.exit_code == 0, result.output
+        assert 'duplicate skill name' in result.output
+
+        lock = _load_lock(tmp_path)
+        # Only the first occurrence should be installed
+        dup_skills = [s for s in lock['skills'] if s['name'] == 'dup-skill']
+        assert len(dup_skills) == 1
 
 
 class TestList:

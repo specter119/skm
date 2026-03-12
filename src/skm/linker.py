@@ -55,8 +55,11 @@ def _is_hardlinked_dir(link_path: Path, skill_src: Path) -> bool:
 
 def link_skill(
     skill_src: Path, skill_name: str, agent_skills_dir: str, force: bool = False, agent_name: str = ''
-) -> Path:
-    """Create a symlink (or hardlink tree) from agent_skills_dir/skill_name -> skill_src."""
+) -> tuple[Path, str]:
+    """Create a symlink (or hardlink tree) from agent_skills_dir/skill_name -> skill_src.
+
+    Returns (link_path, status) where status is "new", "exists", or "replaced".
+    """
     use_hardlink = _get_agent_option(agent_name, 'use_hardlink', False)
     target_dir = Path(agent_skills_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -68,22 +71,26 @@ def link_skill(
             if _is_hardlinked_dir(link_path, skill_src):
                 # Already hardlinked, refresh to pick up any changes
                 _hardlink_tree(skill_src, link_path)
-                return link_path
+                return (link_path, 'exists')
             if not force:
                 raise FileExistsError(f'{link_path} exists and is not a hardlinked copy')
             shutil.rmtree(link_path)
+            _hardlink_tree(skill_src, link_path)
+            return (link_path, 'replaced')
         elif link_path.is_symlink():
             # Switching from symlink to hardlink
             link_path.unlink()
 
         _hardlink_tree(skill_src, link_path)
-        return link_path
+        return (link_path, 'new')
 
     # Symlink mode (default)
     if link_path.is_symlink():
         if link_path.resolve() == skill_src.resolve():
-            return link_path
+            return (link_path, 'exists')
         link_path.unlink()
+        link_path.symlink_to(skill_src)
+        return (link_path, 'replaced')
 
     if link_path.exists():
         if force:
@@ -95,7 +102,7 @@ def link_skill(
             raise FileExistsError(f'{link_path} exists and is not a symlink')
 
     link_path.symlink_to(skill_src)
-    return link_path
+    return (link_path, 'new')
 
 
 def unlink_skill(skill_name: str, agent_skills_dir: str) -> None:

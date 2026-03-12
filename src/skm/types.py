@@ -99,6 +99,9 @@ KNOWN_AGENTS: dict[str, str] = {
 # Options:
 #   use_hardlink: bool - use hard links instead of symlinks for skill installation
 AGENT_OPTIONS: dict[str, dict] = {
+    'standard': {
+        'use_hardlink': True,
+    },
     'openclaw': {
         'use_hardlink': True,
     },

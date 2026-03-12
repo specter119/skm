@@ -95,7 +95,7 @@ def run_update(
         skill = matching[0]
         linked_paths = []
         for agent_name, agent_dir in target_agents.items():
-            link = link_skill(skill.path, skill.name, agent_dir, agent_name=agent_name)
+            link, _status = link_skill(skill.path, skill.name, agent_dir, agent_name=agent_name)
             linked_paths.append(compact_path(str(link)))
 
         lock.skills[i] = InstalledSkill(
