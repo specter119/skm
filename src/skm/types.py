@@ -94,6 +94,7 @@ _KNOWN_AGENTS_DEFAULTS: dict[str, str] = {
     'claude': '~/.claude/skills',
     'codex': '~/.codex/skills',
     'openclaw': '~/.openclaw/skills',
+    'pi': '~/.pi/agent/skills',
 }
 
 # Env vars that override per-agent skill directory base.
