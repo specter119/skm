@@ -9,6 +9,12 @@ A CLI tool that manages **global** AI agent skills from GitHub repos or local di
 ## Install
 
 ```bash
+uv tool install skm-cli
+```
+
+Or install from source:
+
+```bash
 uv tool install git+https://github.com/reorx/skm
 ```
 
