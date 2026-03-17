@@ -209,7 +209,7 @@ def test_update_skips_local_path(tmp_path, capsys):
     store_dir = tmp_path / "store"
     agents = {"claude": str(tmp_path / "agents" / "claude" / "skills")}
 
-    run_update("my-skill", config, lock_path, store_dir, agents)
+    run_update(("my-skill",), False, config, lock_path, store_dir, agents)
 
     captured = capsys.readouterr()
     assert "local path" in captured.out.lower()

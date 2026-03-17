@@ -294,17 +294,22 @@ def check_updates(ctx):
 
 
 @cli.command()
-@click.argument('skill_name')
+@click.argument('skill_names', nargs=-1)
+@click.option('--all', 'update_all', is_flag=True, help='Update all installed skills.')
 @click.pass_context
-def update(ctx, skill_name: str):
-    """Update a specific skill."""
+def update(ctx, skill_names: tuple[str, ...], update_all: bool):
+    """Update one or more skills (or --all)."""
     from skm.commands.update import run_update
+
+    if not skill_names and not update_all:
+        raise click.UsageError("Provide skill name(s) or use --all.")
 
     config = load_config(ctx.obj['config_path'])
     default_agents = config.agents.default if config.agents else None
     agents = _expand_agents(ctx.obj['agents_dir'], default_agents)
     run_update(
-        skill_name=skill_name,
+        skill_names=skill_names,
+        update_all=update_all,
         config=config,
         lock_path=ctx.obj['lock_path'],
         store_dir=ctx.obj['store_dir'],
