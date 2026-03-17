@@ -2,6 +2,21 @@ from pathlib import Path
 
 import click
 
+
+class AliasGroup(click.Group):
+    """A Click group that supports hidden command aliases."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._aliases: dict[str, str] = {}
+
+    def add_alias(self, alias: str, cmd_name: str):
+        self._aliases[alias] = cmd_name
+
+    def get_command(self, ctx, cmd_name):
+        cmd_name = self._aliases.get(cmd_name, cmd_name)
+        return super().get_command(ctx, cmd_name)
+
 from skm.config import load_config, save_config, upsert_package
 from skm.tui import interactive_multi_select
 from skm.types import (
@@ -15,7 +30,7 @@ from skm.types import (
 )
 
 
-@click.group()
+@click.group(cls=AliasGroup)
 @click.option('--config', 'config_path', type=click.Path(), default=None, help='Path to skills.yaml config file.')
 @click.option('--store', 'store_dir', type=click.Path(), default=None, help='Path to skill store directory.')
 @click.option('--lock', 'lock_path', type=click.Path(), default=None, help='Path to skills-lock.yaml lock file.')
@@ -229,6 +244,9 @@ def install(ctx, source, skill_name, force, verbose, agents_includes, agents_exc
         force=force,
         verbose=verbose,
     )
+
+
+cli.add_alias('i', 'install')
 
 
 def _find_package_by_source(config: SkmConfig, source_key: str, is_local: bool) -> SkillRepoConfig | None:

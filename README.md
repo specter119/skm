@@ -26,7 +26,7 @@ packages:
   - local_path: ~/Code/my-custom-skills       # use a local directory instead of a git repo
 ```
 
-2. Run install:
+2. Run install (`skm i` for short):
 
 ```bash
 skm install
@@ -58,8 +58,8 @@ This detects available skills, lets you pick which ones to install (unless a spe
 
 | Command | Description |
 |---|---|
-| `skm install` | Install all packages from config. Clone repos (or link local paths), detect skills, symlink to agents, write lock file. Idempotent — also removes stale links (see below). |
-| `skm install <source> [skill]` | Install directly from a repo URL or local path without editing config. Interactively select skills and agents, then auto-update config. |
+| `skm install` (or `skm i`) | Install all packages from config. Clone repos (or link local paths), detect skills, symlink to agents, write lock file. Idempotent — also removes stale links (see below). |
+| `skm install <source> [skill]` (or `skm i`) | Install directly from a repo URL or local path without editing config. Interactively select skills and agents, then auto-update config. |
 | `skm list` | Show installed skills and their linked paths. |
 | `skm list --all` | Show all skills across all agent directories, marking which are managed by skm. |
 | `skm view <source>` | Browse and preview skills from a repo URL or local path without installing. |
