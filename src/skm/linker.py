@@ -2,12 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
-from skm.types import AGENT_OPTIONS, AgentsConfig
-
-
-def _get_agent_option(agent_name: str, option: str, default=None):
-    """Look up a per-agent option from AGENT_OPTIONS."""
-    return AGENT_OPTIONS.get(agent_name, {}).get(option, default)
+from skm.types import AgentsConfig, get_agent_install_mode
 
 
 def resolve_target_agents(
@@ -58,29 +53,29 @@ def _is_hardlinked_dir(link_path: Path, skill_src: Path) -> bool:
 def link_skill(
     skill_src: Path, skill_name: str, agent_skills_dir: str, force: bool = False, agent_name: str = ''
 ) -> tuple[Path, str]:
-    """Create a symlink (or hardlink tree) from agent_skills_dir/skill_name -> skill_src.
+    """Create a symlink or materialized tree from agent_skills_dir/skill_name -> skill_src.
 
     Returns (link_path, status) where status is "new", "exists", or "replaced".
     """
-    use_hardlink = _get_agent_option(agent_name, 'use_hardlink', False)
+    install_mode = get_agent_install_mode(agent_name)
     target_dir = Path(agent_skills_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     link_path = target_dir / skill_name
 
-    if use_hardlink:
-        # Hard-link mode: recreate dir structure with hardlinked files
+    if install_mode == 'materialize':
+        # Materialized mode: recreate dir structure with hardlinked files.
         if link_path.exists() and not link_path.is_symlink():
             if _is_hardlinked_dir(link_path, skill_src):
-                # Already hardlinked, refresh to pick up any changes
+                # Already materialized, refresh to pick up any changes.
                 _hardlink_tree(skill_src, link_path)
                 return (link_path, 'exists')
             if not force:
-                raise FileExistsError(f'{link_path} exists and is not a hardlinked copy')
+                raise FileExistsError(f'{link_path} exists and is not a materialized copy')
             shutil.rmtree(link_path)
             _hardlink_tree(skill_src, link_path)
             return (link_path, 'replaced')
         elif link_path.is_symlink():
-            # Switching from symlink to hardlink
+            # Switching from symlink to a materialized copy.
             link_path.unlink()
 
         _hardlink_tree(skill_src, link_path)
@@ -108,7 +103,7 @@ def link_skill(
 
 
 def unlink_skill(skill_name: str, agent_skills_dir: str) -> None:
-    """Remove symlink or hardlinked dir for a skill from an agent dir."""
+    """Remove symlink or materialized dir for a skill from an agent dir."""
     link_path = Path(agent_skills_dir) / skill_name
     if link_path.is_symlink():
         link_path.unlink()

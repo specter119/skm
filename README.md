@@ -1,6 +1,6 @@
 # SKM - Skill Manager
 
-A CLI tool that manages **global** AI agent skills from GitHub repos or local directories. Clone repos or link local paths, detect skills via `SKILL.md`, and symlink them into agent directories — all driven by a single YAML config.
+A CLI tool that manages **global** AI agent skills from GitHub repos or local directories. Clone repos or link local paths, detect skills via `SKILL.md`, and install them into agent directories — all driven by a single YAML config.
 
 > **Note:** skm manages skills at the user level (e.g. `~/.claude/skills/`), not at the project level. It is not intended for installing skills into project-scoped directories.
 
@@ -39,6 +39,7 @@ skm install
 ```
 
 Skills are cloned (or symlinked from local paths) into your agent directories (`~/.claude/skills/`, `~/.codex/skills/`, etc.).
+Most agents use symlinks; `standard` and `openclaw` use materialized installs.
 
 ### Install from a source directly
 
@@ -64,7 +65,7 @@ This detects available skills, lets you pick which ones to install (unless a spe
 
 | Command | Description |
 |---|---|
-| `skm install` (or `skm i`) | Install all packages from config. Clone repos (or link local paths), detect skills, symlink to agents, write lock file. Idempotent — also removes stale links (see below). |
+| `skm install` (or `skm i`) | Install all packages from config. Clone repos (or link local paths), detect skills, install to agents, write lock file. Idempotent — also removes stale links (see below). |
 | `skm install <source> [skill]` (or `skm i`) | Install directly from a repo URL or local path without editing config. Interactively select skills and agents, then auto-update config. |
 | `skm list` | Show installed skills and their linked paths. |
 | `skm list --all` | Show all skills across all agent directories, marking which are managed by skm. |
@@ -121,7 +122,7 @@ A skill is a directory containing a `SKILL.md` file with YAML frontmatter (`name
 
 ## Known Agents
 
-Skills are symlinked into these directories by default:
+Skills are installed into these directories by default:
 
 | Agent | Path |
 |---|---|
@@ -129,6 +130,9 @@ Skills are symlinked into these directories by default:
 | `claude` | `~/.claude/skills/` |
 | `codex` | `~/.codex/skills/` |
 | `openclaw` | `~/.openclaw/skills/` |
+| `pi` | `~/.pi/agent/skills/` |
+
+`standard` and `openclaw` use materialized installs instead of symlinks. These built-in defaults are packaged with `skm`; in the repo they are defined in `src/skm/agent_specs.toml`.
 
 ## CLI Path Overrides
 

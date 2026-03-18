@@ -39,7 +39,7 @@ from skm.types import (
     'agents_dir',
     type=click.Path(),
     default=None,
-    help='Base directory for agent skill symlinks (overrides all known agents).',
+    help='Base directory for agent skill installs (overrides all known agents).',
 )
 @click.pass_context
 def cli(ctx, config_path, store_dir, lock_path, agents_dir):

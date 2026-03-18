@@ -71,8 +71,7 @@ def run_list(lock_path: Path, verbose: bool = False, skill_name: str | None = No
 def run_list_all(lock_path: Path, known_agents: dict[str, str]) -> None:
     lock = load_lock(lock_path)
 
-    # Build a set of managed symlink paths for quick lookup
-    # Also build a map: symlink_path -> InstalledSkill for metadata
+    # Build a map of managed install paths for quick lookup.
     managed_links: dict[str, InstalledSkill] = {}
     for skill in lock.skills:
         for link in skill.linked_to:

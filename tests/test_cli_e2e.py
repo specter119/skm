@@ -102,7 +102,7 @@ class TestInstall:
         for agent in ['claude', 'codex', 'pi']:
             link = tmp_path / 'agents' / agent / 'my-skill'
             assert link.is_symlink(), f'Missing symlink for {agent}'
-        # standard and openclaw use hardlinks (directory with hardlinked files)
+        # standard and openclaw use materialized directories backed by hardlinks
         for agent in ['standard', 'openclaw']:
             hardlink = tmp_path / 'agents' / agent / 'my-skill'
             assert hardlink.is_dir() and not hardlink.is_symlink(), f'Missing hardlinked dir for {agent}'
