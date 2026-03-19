@@ -110,9 +110,8 @@ def _materialize_tree(
         if item.is_dir():
             current_mode = _materialize_tree(item, target, current_mode)
         else:
-            if target.exists():
-                target.unlink()
-            current_mode = _materialize_file(item, target, current_mode)
+            if not target.exists():
+                current_mode = _materialize_file(item, target, current_mode)
     return current_mode
 
 
