@@ -264,6 +264,40 @@ class TestInstall:
         dup_skills = [s for s in lock['skills'] if s['name'] == 'dup-skill']
         assert len(dup_skills) == 1
 
+    def test_install_pulls_when_requested_skills_missing(self, tmp_path):
+        """When requested skills aren't found in an existing repo, pull and retry."""
+        # Create repo with only one skill initially
+        repo = _make_skill_repo(tmp_path, 'repo-pull', [{'name': 'old-skill'}])
+
+        # First install: only request old-skill
+        _write_config(tmp_path, [{'repo': str(repo), 'skills': ['old-skill']}])
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / 'agents' / 'claude' / 'old-skill').is_symlink()
+
+        # Add a new skill to the source repo
+        new_skill_dir = repo / 'skills' / 'new-skill'
+        new_skill_dir.mkdir(parents=True, exist_ok=True)
+        (new_skill_dir / 'SKILL.md').write_text(
+            '---\nname: new-skill\ndescription: a new skill\n---\n# new-skill\n'
+        )
+        subprocess.run(['git', 'add', '.'], cwd=repo, capture_output=True, check=True)
+        subprocess.run(['git', 'commit', '-m', 'add new-skill'], cwd=repo, capture_output=True, check=True)
+
+        # Now request both skills — new-skill won't be in the stale clone
+        _write_config(tmp_path, [{'repo': str(repo), 'skills': ['old-skill', 'new-skill']}])
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert result.exit_code == 0, result.output
+
+        # new-skill should be found after auto-pull, no warning
+        assert 'Warning: skills not found' not in result.output
+        assert (tmp_path / 'agents' / 'claude' / 'new-skill').is_symlink()
+
+        lock = _load_lock(tmp_path)
+        names = {s['name'] for s in lock['skills']}
+        assert names == {'old-skill', 'new-skill'}
+
 
 class TestList:
     def test_list_empty(self, tmp_path):
@@ -336,7 +370,7 @@ class TestList:
         assert len(skm_lines) > 0
         assert len(local_lines) > 0
         # Managed skills should have some distinguishing marker (e.g. repo info)
-        assert any('repo-dist' in l or 'skm' in l.lower() for l in skm_lines)
+        assert any('repo-dist' in l for l in skm_lines)
         # Unmanaged should NOT have repo info
         assert not any('repo-dist' in l for l in local_lines)
 
@@ -368,6 +402,8 @@ class TestUpdate:
         runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
 
         # Make a new commit in the source repo
+        skill_file = repo / 'skills' / 'upd-skill' / 'SKILL.md'
+        skill_file.write_text('---\nname: upd-skill\ndescription: updated\n---\n# upd-skill\n')
         (repo / 'skills' / 'upd-skill' / 'extra.md').write_text('new content')
         subprocess.run(['git', 'add', '.'], cwd=repo, capture_output=True, check=True)
         subprocess.run(['git', 'commit', '-m', 'add extra'], cwd=repo, capture_output=True, check=True)
@@ -377,11 +413,45 @@ class TestUpdate:
         assert 'Updated' in result.output
         assert 'add extra' in result.output
 
+        standard_dir = tmp_path / 'agents' / 'standard' / 'upd-skill'
+        openclaw_dir = tmp_path / 'agents' / 'openclaw' / 'upd-skill'
+        assert (standard_dir / 'SKILL.md').read_text() == skill_file.read_text()
+        assert (openclaw_dir / 'SKILL.md').read_text() == skill_file.read_text()
+        assert (standard_dir / 'extra.md').read_text() == 'new content'
+        assert (openclaw_dir / 'extra.md').read_text() == 'new content'
+
         # Verify lock has new commit
         lock = _load_lock(tmp_path)
         old_commit = lock['skills'][0]['commit']
         # The commit should be 40 hex chars (full SHA)
         assert len(old_commit) == 40
+
+    def test_update_removes_deleted_materialized_files(self, tmp_path):
+        repo = _make_skill_repo(tmp_path, 'repo-upd3', [{'name': 'upd-skill'}])
+        tracked_file = repo / 'skills' / 'upd-skill' / 'extra.md'
+        tracked_file.write_text('old content')
+        subprocess.run(['git', 'add', '.'], cwd=repo, capture_output=True, check=True)
+        subprocess.run(['git', 'commit', '-m', 'add extra'], cwd=repo, capture_output=True, check=True)
+
+        _write_config(tmp_path, [{'repo': str(repo)}])
+
+        runner = CliRunner()
+        runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+
+        standard_file = tmp_path / 'agents' / 'standard' / 'upd-skill' / 'extra.md'
+        openclaw_file = tmp_path / 'agents' / 'openclaw' / 'upd-skill' / 'extra.md'
+        assert standard_file.exists()
+        assert openclaw_file.exists()
+
+        tracked_file.unlink()
+        subprocess.run(['git', 'add', '-A'], cwd=repo, capture_output=True, check=True)
+        subprocess.run(['git', 'commit', '-m', 'remove extra'], cwd=repo, capture_output=True, check=True)
+
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'update', 'upd-skill'])
+        assert result.exit_code == 0, result.output
+        assert 'remove extra' in result.output
+        assert not standard_file.exists()
+        assert not openclaw_file.exists()
 
 
 class TestCheckUpdates:
@@ -408,7 +478,8 @@ class TestCheckUpdates:
         _write_config(tmp_path, [{'repo': str(repo)}])
 
         runner = CliRunner()
-        runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        install_result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert install_result.exit_code == 0, install_result.output
 
         # Make a new commit in the source repo
         (repo / 'skills' / 'chk-skill' / 'new.md').write_text('update')

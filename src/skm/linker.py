@@ -1,8 +1,12 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Literal
 
 from skm.types import AgentsConfig, get_agent_install_mode
+from skm.clonefile import clone_file, is_reflink_unsupported, reflink_supported
+
+MaterializationMode = Literal['hardlink', 'reflink', 'copy']
 
 
 def resolve_target_agents(
@@ -22,32 +26,121 @@ def resolve_target_agents(
     return dict(known_agents)
 
 
-def _hardlink_tree(src: Path, dst: Path) -> None:
-    """Recreate directory structure from src at dst, hard-linking all files."""
+def _clone_file_reflink(src: Path, dst: Path) -> None:
+    """Clone a file using the platform's COW mechanism (see skm.clonefile)."""
+    clone_file(src, dst)
+
+
+def _copy_file(src: Path, dst: Path) -> None:
+    """Copy a file with metadata."""
+    shutil.copy2(src, dst)
+
+
+def _get_materialized_entries(path: Path) -> dict[str, Path]:
+    """Return managed candidate entries, excluding hidden files and symlinks."""
+    return {item.name: item for item in path.iterdir() if not item.name.startswith('.') and not item.is_symlink()}
+
+
+def _remove_path(path: Path) -> None:
+    """Remove a file or directory."""
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _supports_copy_fallback(exc: OSError) -> bool:
+    """Return True when a reflink failure should fall back to plain copy."""
+    return is_reflink_unsupported(exc)
+
+
+def _materialize_file(
+    src: Path,
+    dst: Path,
+    mode: MaterializationMode,
+) -> MaterializationMode:
+    """Materialize a file and return the mode to keep using."""
+    if mode == 'hardlink':
+        os.link(src, dst)
+        return 'hardlink'
+
+    if mode == 'copy':
+        _copy_file(src, dst)
+        return 'copy'
+
+    try:
+        _clone_file_reflink(src, dst)
+    except OSError as exc:
+        if not _supports_copy_fallback(exc):
+            raise
+        _copy_file(src, dst)
+        return 'copy'
+    return 'reflink'
+
+
+def _materialize_tree(
+    src: Path,
+    dst: Path,
+    mode: MaterializationMode,
+) -> MaterializationMode:
+    """Recreate directory structure from src at dst using a materialization mode."""
     dst.mkdir(parents=True, exist_ok=True)
-    for item in src.iterdir():
-        if item.name.startswith('.') or item.is_symlink():
-            continue
+    current_mode = mode
+    source_entries = _get_materialized_entries(src)
+    target_entries = _get_materialized_entries(dst)
+
+    for name, target in target_entries.items():
+        if name not in source_entries:
+            _remove_path(target)
+
+    for item in source_entries.values():
         target = dst / item.name
         if item.is_dir():
-            _hardlink_tree(item, target)
+            if target.exists() and not target.is_dir():
+                _remove_path(target)
+            current_mode = _materialize_tree(item, target, current_mode)
         else:
             if target.exists():
-                target.unlink()
-            os.link(item, target)
+                _remove_path(target)
+            current_mode = _materialize_file(item, target, current_mode)
+    return current_mode
 
 
-def _is_hardlinked_dir(link_path: Path, skill_src: Path) -> bool:
-    """Check if link_path is a hardlinked copy of skill_src by comparing inodes of files."""
+def _is_managed_materialized_dir(link_path: Path, skill_src: Path) -> bool:
+    """Check whether link_path looks like a managed materialized copy."""
     if not link_path.is_dir() or link_path.is_symlink():
         return False
-    # Check if any file in the dir shares an inode with the source
-    for item in skill_src.iterdir():
-        if item.is_file():
-            target = link_path / item.name
-            if target.exists() and target.stat().st_ino == item.stat().st_ino:
-                return True
-    return False
+
+    source_entries = _get_materialized_entries(skill_src)
+    target_entries = _get_materialized_entries(link_path)
+
+    compared_any = False
+    for name, source_item in source_entries.items():
+        target_item = target_entries.get(name)
+        if target_item is None:
+            continue
+        compared_any = True
+        if source_item.is_dir():
+            if not target_item.is_dir():
+                return False
+            if not _is_managed_materialized_dir(target_item, source_item):
+                return False
+            continue
+        if not target_item.is_file():
+            return False
+    return compared_any or not target_entries
+
+
+def _select_materialization_mode(skill_src: Path, target_dir: Path) -> MaterializationMode:
+    """Pick hardlink on the same device, otherwise use reflink or plain copy."""
+    src_dev = skill_src.stat().st_dev
+    dst_dev = target_dir.stat().st_dev
+    if src_dev == dst_dev:
+        return 'hardlink'
+
+    if not reflink_supported():
+        return 'copy'
+    return 'reflink'
 
 
 def link_skill(
@@ -63,22 +156,23 @@ def link_skill(
     link_path = target_dir / skill_name
 
     if install_mode == 'materialize':
-        # Materialized mode: recreate dir structure with hardlinked files.
+        # Materialized mode: prefer hardlink, fall back to reflink when devices differ.
+        mode = _select_materialization_mode(skill_src, target_dir)
         if link_path.exists() and not link_path.is_symlink():
-            if _is_hardlinked_dir(link_path, skill_src):
-                # Already materialized, refresh to pick up any changes.
-                _hardlink_tree(skill_src, link_path)
+            if _is_managed_materialized_dir(link_path, skill_src):
+                # Already managed, refresh to pick up any changes.
+                _materialize_tree(skill_src, link_path, mode)
                 return (link_path, 'exists')
             if not force:
-                raise FileExistsError(f'{link_path} exists and is not a materialized copy')
-            shutil.rmtree(link_path)
-            _hardlink_tree(skill_src, link_path)
+                raise FileExistsError(f'{link_path} exists and is not a managed copy')
+            _remove_path(link_path)
+            _materialize_tree(skill_src, link_path, mode)
             return (link_path, 'replaced')
         elif link_path.is_symlink():
             # Switching from symlink to a materialized copy.
             link_path.unlink()
 
-        _hardlink_tree(skill_src, link_path)
+        _materialize_tree(skill_src, link_path, mode)
         return (link_path, 'new')
 
     # Symlink mode (default)
