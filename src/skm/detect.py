@@ -21,7 +21,7 @@ def detect_skills(repo_path: Path, skills_dir: str | None = None) -> list[Detect
     if skills_dir is not None:
         walk_root = repo_path / skills_dir
         if not walk_root.is_dir():
-            raise ValueError(f"skills_dir does not exist or is not a directory: {skills_dir}")
+            raise ValueError(f"skills_dir does not exist or is not a directory: {skills_dir} (repo: {repo_path})")
 
         root_skill = walk_root / 'SKILL.md'
         if root_skill.exists():

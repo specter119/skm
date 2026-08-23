@@ -355,6 +355,32 @@ class TestInstall:
         names = {s['name'] for s in lock['skills']}
         assert names == {'old-skill', 'new-skill'}
 
+    def test_install_error_clears_progress_and_names_failing_repo(self, tmp_path):
+        """When a later package fails, the error must not be appended to the
+        previous package's progress line, and must identify the failing repo."""
+        good = _make_skill_repo(tmp_path, 'good-repo', [{'name': 'good-skill'}])
+        bad = _make_skill_repo(tmp_path, 'bad-repo', [{'name': 'bad-skill'}])
+        _write_config(
+            tmp_path,
+            [
+                {'repo': str(good)},
+                {'repo': str(bad), 'skills_dir': 'missing-dir'},
+            ],
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+
+        assert result.exit_code != 0
+        stderr = result.stderr
+        # The failing repo must be identified in the error message
+        assert 'missing-dir' in stderr
+        assert 'bad-repo' in stderr
+        # The progress line must be cleared before the error is printed:
+        # whatever follows the last clear-line sequence starts with 'Error:'
+        last_segment = stderr.split('\r\x1b[K')[-1]
+        assert last_segment.startswith('Error:'), repr(last_segment)
+
 
 class TestList:
     def test_list_empty(self, tmp_path):

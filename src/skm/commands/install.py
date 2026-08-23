@@ -97,21 +97,28 @@ def run_install(
     added_count = 0
     all_deferred_lines: list[str] = []
 
-    for repo_config in config.packages:
-        if repo_config.is_local:
-            count, lines = _install_local(
-                repo_config, new_lock_skills, configured_skill_keys, known_agents, force, verbose
-            )
-        else:
-            count, lines = _install_repo(
-                repo_config, store_dir, new_lock_skills, configured_skill_keys, known_agents, force, verbose
-            )
+    try:
+        for repo_config in config.packages:
+            if repo_config.is_local:
+                count, lines = _install_local(
+                    repo_config, new_lock_skills, configured_skill_keys, known_agents, force, verbose
+                )
+            else:
+                count, lines = _install_repo(
+                    repo_config, store_dir, new_lock_skills, configured_skill_keys, known_agents, force, verbose
+                )
 
-        added_count += count
-        all_deferred_lines.extend(lines)
+            added_count += count
+            all_deferred_lines.extend(lines)
 
-        if verbose:
-            click.echo()
+            if verbose:
+                click.echo()
+    except BaseException:
+        # Clear the refreshing progress line so the error message is not
+        # appended to a stale progress line from a previous package
+        if not verbose:
+            _clear_progress()
+        raise
 
     if not verbose:
         _clear_progress()
@@ -387,14 +394,19 @@ def run_install_package(
     new_lock_skills: list[InstalledSkill] = []
     configured_skill_keys: set[tuple[str, str]] = set()
 
-    if repo_config.is_local:
-        added_count, deferred_lines = _install_local(
-            repo_config, new_lock_skills, configured_skill_keys, known_agents, force, verbose
-        )
-    else:
-        added_count, deferred_lines = _install_repo(
-            repo_config, store_dir, new_lock_skills, configured_skill_keys, known_agents, force, verbose
-        )
+    try:
+        if repo_config.is_local:
+            added_count, deferred_lines = _install_local(
+                repo_config, new_lock_skills, configured_skill_keys, known_agents, force, verbose
+            )
+        else:
+            added_count, deferred_lines = _install_repo(
+                repo_config, store_dir, new_lock_skills, configured_skill_keys, known_agents, force, verbose
+            )
+    except BaseException:
+        if not verbose:
+            _clear_progress()
+        raise
 
     if not verbose:
         _clear_progress()

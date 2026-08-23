@@ -120,8 +120,10 @@ def test_detect_explicit_skills_dir_can_be_singleton(tmp_path):
 
 
 def test_detect_missing_explicit_skills_dir_raises(tmp_path):
-    with pytest.raises(ValueError, match='skills_dir does not exist'):
+    with pytest.raises(ValueError, match='skills_dir does not exist') as excinfo:
         detect_skills(tmp_path, skills_dir='missing')
+    # Error message must identify which repo failed
+    assert str(tmp_path) in str(excinfo.value)
 
 
 def test_parse_skill_name_strips_quotes(tmp_path):
