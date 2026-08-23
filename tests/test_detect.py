@@ -80,6 +80,20 @@ def test_detect_skills_skips_git_dir(tmp_path):
     assert skills[0].name == 'real-skill'
 
 
+def test_detect_skills_skips_underscore_dirs(tmp_path):
+    """Directories that start with '_' are ignored during traversal."""
+    skills_dir = tmp_path / 'skills'
+    _write_skill_md(skills_dir / 'real-skill', 'real-skill')
+    # Underscore dir containing a skill directly
+    _write_skill_md(skills_dir / '_archived', 'archived-skill')
+    # Underscore dir containing skills in subdirectories
+    _write_skill_md(skills_dir / '_drafts' / 'wip-skill', 'wip-skill')
+
+    skills = detect_skills(tmp_path)
+    names = {s.name for s in skills}
+    assert names == {'real-skill'}
+
+
 def test_detect_skills_in_explicit_skills_dir(tmp_path):
     """Explicit skills_dir limits discovery to that directory."""
     _write_skill_md(tmp_path / 'skills' / 'ignored', 'ignored')

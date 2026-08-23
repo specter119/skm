@@ -97,6 +97,8 @@ A skill is a directory containing a `SKILL.md` file with YAML frontmatter includ
 3. Otherwise → walk all subdirectories from repo root
 4. Stop descending once `SKILL.md` is found (no nested skill-in-skill)
 
+During traversal, `.git` and directories whose names start with `_` are skipped.
+
 ## Known Agents
 
 Defined in `src/skm/types.py` as `KNOWN_AGENTS`:

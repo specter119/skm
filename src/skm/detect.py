@@ -49,7 +49,7 @@ def _walk_for_skills(walk_root: Path, repo_path: Path) -> list[DetectedSkill]:
     for child in sorted(walk_root.iterdir()):
         if not child.is_dir() or child.is_symlink():
             continue
-        if child.name == '.git':
+        if child.name == '.git' or child.name.startswith('_'):
             continue
         skill_md = child / 'SKILL.md'
         if skill_md.exists():
