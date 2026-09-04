@@ -29,8 +29,8 @@ tests/
 ├── test_types.py        # Pydantic model validation
 ├── test_config.py       # Config loading, error handling
 ├── test_lock.py         # Lock file I/O
-├── test_detect.py       # Skill detection logic (local + network tests against real repos)
-├── test_git.py          # Git operations (clone, commit retrieval, clone failure handling)
+├── test_detect.py       # Skill detection logic (local + network tests against real repos); select_skill_dirs() path-list rules
+├── test_git.py          # Git operations (sparse clone command sequence, real local-repo sparse checkout, pull re-sparsing, clone failure handling)
 ├── test_linker.py       # Symlink creation, agent filtering
 ├── test_install.py      # Install command unit tests
 └── test_cli_e2e.py      # End-to-end CLI tests for all commands
