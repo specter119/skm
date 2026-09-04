@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 import click
 
+from skm.detect import select_skill_dirs
+
 ALLOWED_URL_RE = re.compile(r'^(https?://|git@|/)')
 SHA_RE = re.compile(r'^[0-9a-f]{7,40}$')
 
@@ -44,18 +46,58 @@ def _validate_sha(sha: str) -> None:
         raise ValueError(f"Invalid commit SHA: {sha!r}")
 
 
-def clone_or_pull(repo_url: str, dest: Path, clone_strategy: str | None = None) -> None:
-    """Clone repo if not present, otherwise pull latest."""
+def clone_or_pull(
+    repo_url: str,
+    dest: Path,
+    clone_strategy: str | None = None,
+    skills_dir: str | None = None,
+) -> None:
+    """Clone repo if not present, otherwise pull latest.
+
+    Only skill directories are checked out (sparse checkout); the sparse set is
+    recomputed after every pull so skills added upstream get materialized.
+    """
     if dest.exists() and (dest / ".git").exists():
         run_cmd(["git", "pull", "--ff-only"], cwd=dest)
+        apply_sparse_checkout(dest, skills_dir)
     else:
         _validate_repo_url(repo_url)
         dest.parent.mkdir(parents=True, exist_ok=True)
         cmd = ["git", "clone", "--filter=blob:none"]
         if clone_strategy == "shallow":
             cmd.extend(["--depth", "1"])
-        cmd.extend([repo_url, str(dest)])
+        cmd.extend(["--no-checkout", repo_url, str(dest)])
         run_cmd(cmd)
+        apply_sparse_checkout(dest, skills_dir)
+        run_cmd(["git", "checkout"], cwd=dest)
+
+
+def list_tree_files(repo_path: Path) -> list[str]:
+    """List repo-relative paths of regular file blobs at HEAD (no checkout needed)."""
+    result = run_cmd(["git", "ls-tree", "-r", "-z", "HEAD"], cwd=repo_path, text=True)
+    paths = []
+    for entry in result.stdout.split("\0"):
+        if not entry:
+            continue
+        meta, path = entry.split("\t", 1)
+        mode, obj_type, _sha = meta.split()
+        if obj_type == "blob" and mode != "120000":
+            paths.append(path)
+    return paths
+
+
+def apply_sparse_checkout(repo_path: Path, skills_dir: str | None = None) -> list[str] | None:
+    """Restrict the working tree to skill directories found in HEAD's tree.
+
+    Returns the sparse directory list, or None when the whole repo is checked
+    out (root singleton skill or no skills found).
+    """
+    dirs = select_skill_dirs(list_tree_files(repo_path), skills_dir)
+    if not dirs:
+        run_cmd(["git", "sparse-checkout", "disable"], cwd=repo_path)
+        return None
+    run_cmd(["git", "sparse-checkout", "set", "--cone", *dirs], cwd=repo_path)
+    return dirs
 
 
 def get_head_commit(repo_path: Path) -> str:

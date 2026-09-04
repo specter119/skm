@@ -169,3 +169,53 @@ def test_detect_vercel_agent_skills_repo(tmp_path):
     names = {s.name for s in skills}
     assert 'vercel-react-best-practices' in names
     assert 'vercel-react-native-skills' in names
+
+
+# --- select_skill_dirs: path-list discovery used for sparse checkout ---
+
+from skm.detect import select_skill_dirs  # noqa: E402
+
+
+def test_select_root_singleton_returns_none():
+    paths = ['SKILL.md', 'README.md', 'docs/x.md']
+    assert select_skill_dirs(paths, None) is None
+
+
+def test_select_skills_dir_children():
+    paths = ['skills/a/SKILL.md', 'skills/b/SKILL.md', 'skills/b/ref.md', 'other/x.py', 'README.md']
+    assert select_skill_dirs(paths, None) == ['skills/a', 'skills/b']
+
+
+def test_select_walk_from_root_when_no_skills_dir():
+    paths = ['foo/SKILL.md', 'bar/baz/SKILL.md', 'bar/README.md', 'src/main.py']
+    assert select_skill_dirs(paths, None) == ['bar/baz', 'foo']
+
+
+def test_select_skips_underscore_dirs():
+    paths = ['skills/_draft/SKILL.md', 'skills/a/SKILL.md', 'skills/grp/_x/SKILL.md', 'skills/grp/y/SKILL.md']
+    assert select_skill_dirs(paths, None) == ['skills/a', 'skills/grp/y']
+
+
+def test_select_stops_descending_at_first_skill_md():
+    paths = ['skills/a/SKILL.md', 'skills/a/inner/SKILL.md']
+    assert select_skill_dirs(paths, None) == ['skills/a']
+
+
+def test_select_with_skills_dir():
+    paths = ['pkg/curated/a/SKILL.md', 'pkg/exp/b/SKILL.md', 'skills/c/SKILL.md']
+    assert select_skill_dirs(paths, 'pkg/curated') == ['pkg/curated/a']
+    assert select_skill_dirs(paths, 'pkg') == ['pkg/curated/a', 'pkg/exp/b']
+
+
+def test_select_skills_dir_is_itself_a_skill():
+    paths = ['pkg/SKILL.md', 'pkg/sub/SKILL.md', 'README.md']
+    assert select_skill_dirs(paths, 'pkg') == ['pkg']
+
+
+def test_select_skills_dir_without_skills_returns_empty():
+    paths = ['pkg/README.md', 'skills/a/SKILL.md']
+    assert select_skill_dirs(paths, 'pkg') == []
+
+
+def test_select_no_skills_anywhere_returns_empty():
+    assert select_skill_dirs(['README.md', 'src/x.py'], None) == []

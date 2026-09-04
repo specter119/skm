@@ -107,7 +107,9 @@ packages:
 
 Each package must specify exactly one of `repo` or `local_path`. Local path packages use the directory directly (no cloning) and are skipped by `check-updates` and `update`.
 
-`clone_strategy: shallow` is optional for repo packages. When set, the first clone uses `git clone --filter=blob:none --depth 1`; omitted or other values keep the default clone command, `git clone --filter=blob:none`. Existing cached repos are reused and pulled, so changing this option does not re-clone an already-present repo.
+Repo packages are cloned with a sparse checkout: skm runs `git clone --filter=blob:none --no-checkout`, lists the tree with `git ls-tree`, and checks out only the directories that contain a `SKILL.md` (using the same detection rules as below, honoring `skills_dir`). A large monorepo that ships a couple of skills therefore costs a few hundred KB on disk instead of the whole working tree. The store stays a normal git repo, so `check-updates` and `update` work unchanged; the sparse set is recomputed after every pull so skills added upstream are picked up automatically. Repos whose root is itself a skill are checked out in full.
+
+`clone_strategy: shallow` is optional for repo packages. When set, the first clone additionally passes `--depth 1`; omitted or other values keep the full history (blobs are still fetched lazily). Existing cached repos are reused and pulled, so changing this option does not re-clone an already-present repo. Caches created before sparse checkout was introduced shrink on their next `skm update`.
 
 `skills_dir` is optional and must be a relative path inside the package. When set, skm searches only that directory for `SKILL.md` files instead of using the default detection order.
 

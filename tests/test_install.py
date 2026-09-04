@@ -77,7 +77,7 @@ def test_install_passes_clone_strategy_to_git_helper(tmp_path, monkeypatch):
     agents = {'claude': str(tmp_path / 'agents' / 'claude' / 'skills')}
     clone_strategies = []
 
-    def fake_clone_or_pull(repo_url, dest, clone_strategy=None):
+    def fake_clone_or_pull(repo_url, dest, clone_strategy=None, skills_dir=None):
         clone_strategies.append(clone_strategy)
         subprocess.run(['git', 'clone', repo_url, str(dest)], capture_output=True, check=True)
 

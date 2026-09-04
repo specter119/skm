@@ -85,7 +85,7 @@ def _update_repo(
 
     # Pull latest
     click.echo(f'Pulling {click.style(repo_url, fg="cyan")}...')
-    clone_or_pull(repo_url, repo_path, clone_strategy=repo_config.clone_strategy)
+    clone_or_pull(repo_url, repo_path, clone_strategy=repo_config.clone_strategy, skills_dir=repo_config.skills_dir)
     new_commit = get_head_commit(repo_path)
 
     if old_commit == new_commit:

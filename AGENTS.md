@@ -16,8 +16,8 @@ src/skm/
 ├── types.py            # Pydantic data models + constants
 ├── config.py           # Load skills.yaml → SkmConfig
 ├── lock.py             # Read/write skills-lock.yaml
-├── detect.py           # Walk cloned repos for SKILL.md files
-├── git.py              # Clone, pull, fetch, commit SHA helpers (unified run_cmd error handling)
+├── detect.py           # Walk cloned repos for SKILL.md files; select_skill_dirs() applies the same rules to a git tree listing
+├── git.py              # Sparse clone (no-checkout + ls-tree + sparse-checkout), pull, fetch, commit SHA helpers (unified run_cmd error handling)
 ├── utils.py            # Utility functions (compact_path)
 ├── linker.py           # Symlink skills to agent dirs, resolve includes/excludes
 └── commands/
@@ -45,7 +45,11 @@ tests/
 
 ## Architecture
 
-Config-driven: parse `skills.yaml` → clone repos to store → detect skills by walking for `SKILL.md` → symlink to agent dirs → write lock file.
+Config-driven: parse `skills.yaml` → sparse-clone repos to store → detect skills by walking for `SKILL.md` → symlink to agent dirs → write lock file.
+
+## Sparse Clone
+
+`clone_or_pull()` in `git.py` never checks out a whole repo. It clones with `--filter=blob:none --no-checkout`, lists HEAD's tree via `git ls-tree -r -z HEAD` (tree objects are always fetched, so this is offline), feeds the path list to `select_skill_dirs()` in `detect.py`, and runs `git sparse-checkout set --cone <dirs>` before `git checkout`. After every `git pull` the sparse set is recomputed so skills added upstream get materialized. A root-level `SKILL.md` (singleton) or a repo with no skills disables sparse checkout and checks out everything. `select_skill_dirs()` must stay in sync with `detect_skills()`; both share the rules listed under Skill Detection.
 
 Each command function (`run_install`, `run_list`, etc.) accepts explicit paths and agent dicts as parameters, making them testable with `tmp_path` fixtures without touching real filesystem locations.
 
@@ -59,7 +63,7 @@ Paths stored in `skills-lock.yaml` (e.g. `linked_to`) use `compact_path()` from 
 
 ## CLI Commands
 
-- `skm install` — Clone repos (idempotent: skips pull if already cloned), detect skills, create symlinks, remove stale links, update lock. Treats `skills.yaml` as declarative state: removes links for skills dropped from config or agents changed by includes/excludes. Only removes links tracked in the lock file — manually created files in agent dirs are never touched.
+- `skm install` — Sparse-clone repos (idempotent: skips pull if already cloned), detect skills, create symlinks, remove stale links, update lock. Treats `skills.yaml` as declarative state: removes links for skills dropped from config or agents changed by includes/excludes. Only removes links tracked in the lock file — manually created files in agent dirs are never touched.
 - `skm list` — Show installed skills and their linked paths from lock file
 - `skm check-updates` — Fetch remotes, compare against locked commits, show changelog
 - `skm update <skill_name>` — Pull latest for a skill's repo, re-link, update lock

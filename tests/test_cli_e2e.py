@@ -487,7 +487,7 @@ class TestUpdate:
 
         clone_strategies = []
 
-        def fake_clone_or_pull(repo_url, dest, clone_strategy=None):
+        def fake_clone_or_pull(repo_url, dest, clone_strategy=None, skills_dir=None):
             clone_strategies.append(clone_strategy)
             subprocess.run(['git', 'pull', '--ff-only'], cwd=dest, capture_output=True, check=True)
 
@@ -583,3 +583,64 @@ class TestCheckUpdates:
         result = runner.invoke(cli, [*_cli_args(tmp_path), 'check-updates'])
         assert result.exit_code == 0
         assert 'Updates available' in result.output or 'upstream change' in result.output
+
+
+def _add_file_and_commit(repo: Path, rel_path: str, content: str, msg: str = 'add file') -> None:
+    target = repo / rel_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content)
+    subprocess.run(['git', 'add', '.'], cwd=repo, capture_output=True, check=True)
+    subprocess.run(['git', 'commit', '-q', '-m', msg], cwd=repo, capture_output=True, check=True)
+
+
+def _skill_md(name: str) -> str:
+    return f'---\nname: {name}\ndescription: test skill {name}\n---\n# {name}\n'
+
+
+class TestSparseCheckout:
+    def test_install_checks_out_only_skill_dirs(self, tmp_path):
+        repo = _make_skill_repo(tmp_path, 'sparse-repo', [{'name': 'sk-a'}])
+        _add_file_and_commit(repo, 'big/data.txt', '0' * 10000, 'add unrelated data')
+        _write_config(tmp_path, [{'repo': str(repo)}])
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert result.exit_code == 0, result.output
+
+        store_repo = next((tmp_path / 'store').iterdir())
+        assert (store_repo / 'skills' / 'sk-a' / 'SKILL.md').exists()
+        assert not (store_repo / 'big').exists()
+        assert (tmp_path / 'agents' / 'claude' / 'sk-a').is_symlink()
+        assert {s['name'] for s in _load_lock(tmp_path)['skills']} == {'sk-a'}
+
+    def test_install_sparse_set_follows_skills_dir(self, tmp_path):
+        repo = _make_skill_repo(tmp_path, 'sparse-skills-dir', [{'name': 'sk-b'}])
+        _add_file_and_commit(repo, 'pkg/sk-p/SKILL.md', _skill_md('sk-p'), 'add pkg skill')
+        _write_config(tmp_path, [{'repo': str(repo), 'skills_dir': 'pkg'}])
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert result.exit_code == 0, result.output
+
+        store_repo = next((tmp_path / 'store').iterdir())
+        assert (store_repo / 'pkg' / 'sk-p' / 'SKILL.md').exists()
+        assert not (store_repo / 'skills').exists()
+        assert {s['name'] for s in _load_lock(tmp_path)['skills']} == {'sk-p'}
+
+    def test_update_materializes_new_upstream_skill(self, tmp_path):
+        repo = _make_skill_repo(tmp_path, 'sparse-upd', [{'name': 'sk-a'}])
+        _write_config(tmp_path, [{'repo': str(repo)}])
+
+        runner = CliRunner()
+        assert runner.invoke(cli, [*_cli_args(tmp_path), 'install']).exit_code == 0
+
+        _add_file_and_commit(repo, 'skills/sk-new/SKILL.md', _skill_md('sk-new'), 'add sk-new')
+
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'update', '--all'])
+        assert result.exit_code == 0, result.output
+        store_repo = next((tmp_path / 'store').iterdir())
+        assert (store_repo / 'skills' / 'sk-new' / 'SKILL.md').exists()
+
+        result = runner.invoke(cli, [*_cli_args(tmp_path), 'install'])
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / 'agents' / 'claude' / 'sk-new').is_symlink()
